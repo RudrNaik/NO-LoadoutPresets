@@ -347,10 +347,12 @@ namespace LoadoutPresets
             }
             else
             {
-                GUILayout.Label("Name:");
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Name:", GUILayout.ExpandWidth(false));
                 var prevName = _name;
-                _name = GUILayout.TextField(_name ?? "", 32);
+                _name = GUILayout.TextField(_name ?? "", 32, GUILayout.ExpandWidth(true));
                 if (_confirmDelete && prevName != _name) _confirmDelete = false;
+                GUILayout.EndHorizontal();
 
                 GUILayout.BeginHorizontal();
 
@@ -370,7 +372,7 @@ namespace LoadoutPresets
                     }
                 }
 
-                GUI.enabled = !string.IsNullOrWhiteSpace(_selected);
+                GUI.enabled = !string.IsNullOrWhiteSpace(_selected) && _selected != Plugin.DEFAULTPRESET;
 
                 if (GUILayout.Button("Apply"))
                 {
@@ -397,8 +399,7 @@ namespace LoadoutPresets
                     }
                 }
 
-                bool canDelete = !string.IsNullOrWhiteSpace(_selected) && _selected != Plugin.DEFAULTPRESET;
-                GUI.enabled = canDelete;
+                GUI.enabled = !string.IsNullOrWhiteSpace(_selected) && _selected != Plugin.DEFAULTPRESET;
 
                 if (GUILayout.Button(_confirmDelete ? "Confirm" : "Delete"))
                 {
