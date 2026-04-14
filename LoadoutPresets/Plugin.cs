@@ -39,24 +39,24 @@ namespace LoadoutPresets
 
     internal static class MenuRefs
     {
-            internal static readonly AccessTools.FieldRef<LoadoutSelector, Slider> FuelLevel =
-                AccessTools.FieldRefAccess<LoadoutSelector, Slider>("fuelLevel");
+        internal static readonly AccessTools.FieldRef<LoadoutSelector, Slider> FuelLevel =
+            AccessTools.FieldRefAccess<LoadoutSelector, Slider>("fuelLevel");
 
-            internal static readonly AccessTools.FieldRef<LoadoutSelector, TMP_Dropdown> LiveryDropdown =
-                AccessTools.FieldRefAccess<LoadoutSelector, TMP_Dropdown>("liveryDropdown");
+        internal static readonly AccessTools.FieldRef<LoadoutSelector, TMP_Dropdown> LiveryDropdown =
+            AccessTools.FieldRefAccess<LoadoutSelector, TMP_Dropdown>("liveryDropdown");
 
-            internal static readonly AccessTools.FieldRef<LoadoutSelector, List<ValueTuple<LiveryKey, string>>> LiveryOptions =
-                AccessTools.FieldRefAccess<LoadoutSelector, List<ValueTuple<LiveryKey, string>>>("liveryOptions");
+        internal static readonly AccessTools.FieldRef<LoadoutSelector, List<ValueTuple<LiveryKey, string>>> LiveryOptions =
+            AccessTools.FieldRefAccess<LoadoutSelector, List<ValueTuple<LiveryKey, string>>>("liveryOptions");
 
-            internal static readonly AccessTools.FieldRef<LoadoutSelector, List<WeaponSelector>> WeaponSelectors =
-                AccessTools.FieldRefAccess<LoadoutSelector, List<WeaponSelector>>("weaponSelectors");
-            
-            // This one in particular is still in the AircraftSelectionMenu
-            internal static readonly AccessTools.FieldRef<AircraftSelectionMenu, Aircraft> PreviewAircraft =
-                AccessTools.FieldRefAccess<AircraftSelectionMenu, Aircraft>("previewAircraft");
-        
-            internal static readonly AccessTools.FieldRef<AircraftSelectionMenu, LoadoutSelector> LoadoutSelectorRef =
-                AccessTools.FieldRefAccess<AircraftSelectionMenu, LoadoutSelector>("loadoutSelector");
+        internal static readonly AccessTools.FieldRef<LoadoutSelector, List<WeaponSelector>> WeaponSelectors =
+            AccessTools.FieldRefAccess<LoadoutSelector, List<WeaponSelector>>("weaponSelectors");
+
+        // This one in particular is still in the AircraftSelectionMenu
+        internal static readonly AccessTools.FieldRef<AircraftSelectionMenu, Aircraft> PreviewAircraft =
+            AccessTools.FieldRefAccess<AircraftSelectionMenu, Aircraft>("previewAircraft");
+
+        internal static readonly AccessTools.FieldRef<AircraftSelectionMenu, LoadoutSelector> LoadoutSelectorRef =
+            AccessTools.FieldRefAccess<AircraftSelectionMenu, LoadoutSelector>("loadoutSelector");
     }
 
     internal static class PresetIO
@@ -92,8 +92,13 @@ namespace LoadoutPresets
         internal static void SetActivePreset(AircraftDefinition def, string preset) =>
             Set(BaseSection(def), ActiveKey, Plugin.DEFAULTPRESET, Norm(preset));
 
-        internal static bool IsSaved(AircraftDefinition def, string preset) =>
-            Get(PresetSection(def, preset), SavedKey, false);
+        internal static bool IsSaved(AircraftDefinition def, string preset)
+        {
+            if (preset == Plugin.DEFAULTPRESET)
+                return true; // IMPORTANT: treat default as always valid
+
+            return Get(PresetSection(def, preset), SavedKey, false);
+        }
 
         internal static void SaveCurrentToPreset(AircraftSelectionMenu menu, AircraftDefinition def, string preset)
         {
@@ -143,18 +148,26 @@ namespace LoadoutPresets
         {
             var loadSelect = MenuRefs.LoadoutSelectorRef(menu);
 
-            preset = preset?.Trim();
-            if (string.IsNullOrWhiteSpace(preset)) return false;
-
-            string section = PresetSection(def, preset);
-            if (!Get(section, SavedKey, false)) return false;
+            preset = Norm(preset);
+            if (string.IsNullOrWhiteSpace(preset))
+                return false;
 
             Aircraft preview = MenuRefs.PreviewAircraft(menu);
             HardpointSet[] sets = preview?.weaponManager?.hardpointSets;
-            if (sets == null) return false;
+
+            if (sets == null)
+                return false;
+
+            string section = PresetSection(def, preset);
+            bool hasSaved = Get(section, SavedKey, false);
+
+            if (!hasSaved || preset == Plugin.DEFAULTPRESET)
+            {
+                ApplyVanillaDefaults(menu, loadSelect);
+                return true;
+            }
 
             var weaponSelectors = MenuRefs.WeaponSelectors(loadSelect);
-
             int n = Math.Min(weaponSelectors.Count, sets.Length);
 
             for (int i = 0; i < n; i++)
@@ -162,7 +175,7 @@ namespace LoadoutPresets
                 string key = Get(section, HpKey(i), "") ?? "";
 
                 weaponSelectors[i].SetValue(
-                    key.Length == 0
+                    string.IsNullOrEmpty(key)
                         ? null
                         : sets[i].weaponOptions.Find(w => w != null && w.jsonKey == key)
                 );
@@ -171,16 +184,17 @@ namespace LoadoutPresets
             loadSelect.UpdateWeapons(true);
 
             string wantLiveryKey = Get(section, LiveryKey, "") ?? "";
-            if (wantLiveryKey.Length != 0)
+
+            if (!string.IsNullOrEmpty(wantLiveryKey))
             {
                 TMP_Dropdown dd = MenuRefs.LiveryDropdown(loadSelect);
                 var opts = MenuRefs.LiveryOptions(loadSelect);
 
-                if (dd != null && opts != null)
+                if (dd != null && opts != null && opts.Count > 0)
                 {
                     int idx = opts.FindIndex(o => o.Item1.ToString() == wantLiveryKey);
 
-                    if (idx >= 0)
+                    if (idx >= 0 && idx < opts.Count)
                     {
                         dd.SetValueWithoutNotify(idx);
                         loadSelect.SelectLivery();
@@ -189,11 +203,71 @@ namespace LoadoutPresets
             }
 
             float fuel = Get(section, FuelKey, 1f);
-            MenuRefs.FuelLevel(loadSelect).SetValueWithoutNotify(Mathf.Clamp01(fuel));
-            loadSelect.ChangeFuelLevel();
+
+            var fuelSlider = MenuRefs.FuelLevel(loadSelect);
+            if (fuelSlider != null)
+            {
+                fuelSlider.SetValueWithoutNotify(Mathf.Clamp01(fuel));
+                loadSelect.ChangeFuelLevel();
+            }
 
             return true;
         }
+
+        private static void ApplyVanillaDefaults(
+    AircraftSelectionMenu menu,
+    LoadoutSelector loadSelect)
+{
+    var aircraft = MenuRefs.PreviewAircraft(menu);
+    if (aircraft == null || aircraft.definition == null)
+        return;
+
+    var parameters = aircraft.definition.aircraftParameters;
+    var weaponSelectors = MenuRefs.WeaponSelectors(loadSelect);
+
+    if (parameters?.loadouts != null && parameters.loadouts.Count > 0)
+    {
+        var defaultLoadout =
+            parameters.loadouts.Count > 1
+                ? parameters.loadouts[1]
+                : parameters.loadouts[0];
+
+        int n = Math.Min(weaponSelectors.Count, defaultLoadout.weapons.Count);
+
+        for (int i = 0; i < n; i++)
+        {
+            weaponSelectors[i].SetValue(defaultLoadout.weapons[i]);
+        }
+    }
+
+    loadSelect.UpdateWeapons(false);
+
+    var dd = MenuRefs.LiveryDropdown(loadSelect);
+    var opts = MenuRefs.LiveryOptions(loadSelect);
+
+    if (dd != null && opts != null && opts.Count > 0)
+    {
+        int livery = UnityEngine.Random.Range(0, opts.Count);
+        dd.SetValueWithoutNotify(livery);
+        loadSelect.SelectLivery();
+
+        aircraft.SetLiveryKey(aircraft.NetworkLiveryKey, true);
+    }
+
+    var fuelSlider = MenuRefs.FuelLevel(loadSelect);
+
+    if (fuelSlider != null)
+    {
+        float fuel = parameters != null
+            ? parameters.DefaultFuelLevel
+            : 1f;
+
+        fuelSlider.SetValueWithoutNotify(Mathf.Clamp01(fuel));
+        loadSelect.ChangeFuelLevel();
+    }
+
+    loadSelect.UpdateWeapons(true);
+}
 
         internal static void DeletePreset(AircraftDefinition def, string preset)
         {
@@ -250,30 +324,6 @@ namespace LoadoutPresets
             return list;
         }
     }
-    [HarmonyPatch(typeof(LoadoutSelector), "SaveDefaults")]
-    internal static class Patch_SaveDefaults
-    {
-        static void Postfix(LoadoutSelector __instance)
-        {
-            if (!Plugin.Enabled.Value) return;
-
-            try
-            {
-                var menu = __instance.GetComponentInParent<AircraftSelectionMenu>();
-                if (menu == null) return;
-
-                PresetMenuUI.Attach(menu);
-
-                AircraftDefinition def = menu.GetSelectedType();
-
-                PresetIO.SaveCurrentToPreset(menu, def, Plugin.DEFAULTPRESET);
-            }
-            catch (Exception e)
-            {
-                Plugin.Log.LogError(e);
-            }
-        }
-    }
 
     [HarmonyPatch(typeof(LoadoutSelector), "LoadDefaults")]
     internal static class Patch_LoadDefaults
@@ -281,20 +331,28 @@ namespace LoadoutPresets
         static void Postfix(LoadoutSelector __instance)
         {
             if (!Plugin.Enabled.Value) return;
-            try
-            {
-                var menu = __instance.GetComponentInParent<AircraftSelectionMenu>();
-                if (menu == null) return;
 
-                PresetMenuUI.Attach(menu);
+            var menu = __instance.GetComponentInParent<AircraftSelectionMenu>();
+            if (menu == null) return;
 
-                AircraftDefinition def = menu.GetSelectedType();
+            PresetMenuUI.Attach(menu);
 
-                PresetIO.LoadPreset(menu, def, Plugin.DEFAULTPRESET);
-            }
-            catch (Exception e) { Plugin.Log.LogError(e); }
+            // IMPORTANT: delay preset apply ONE frame
+            menu.StartCoroutine(ApplyAfterFrame(menu));
+        }
+
+        private static System.Collections.IEnumerator ApplyAfterFrame(AircraftSelectionMenu menu)
+        {
+            yield return null; // wait for Unity to finish LoadDefaults internals
+
+            var def = menu.GetSelectedType();
+            var active = PresetIO.GetActivePreset(def);
+
+            PresetIO.LoadPreset(menu, def, active);
         }
     }
+
+
     internal static class PresetMenuUI
     {
         internal static AircraftSelectionMenu Menu;
@@ -348,7 +406,7 @@ namespace LoadoutPresets
 
             _rect = GUI.Window(2082, _rect, _ => Window(menu, def), "Loadout Presets");
         }
-        
+
         private static void Window(AircraftSelectionMenu menu, AircraftDefinition def)
         {
             string active = PresetIO.GetActivePreset(def);
