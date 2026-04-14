@@ -214,60 +214,58 @@ namespace LoadoutPresets
             return true;
         }
 
-        private static void ApplyVanillaDefaults(
-    AircraftSelectionMenu menu,
-    LoadoutSelector loadSelect)
-{
-    var aircraft = MenuRefs.PreviewAircraft(menu);
-    if (aircraft == null || aircraft.definition == null)
-        return;
-
-    var parameters = aircraft.definition.aircraftParameters;
-    var weaponSelectors = MenuRefs.WeaponSelectors(loadSelect);
-
-    if (parameters?.loadouts != null && parameters.loadouts.Count > 0)
-    {
-        var defaultLoadout =
-            parameters.loadouts.Count > 1
-                ? parameters.loadouts[1]
-                : parameters.loadouts[0];
-
-        int n = Math.Min(weaponSelectors.Count, defaultLoadout.weapons.Count);
-
-        for (int i = 0; i < n; i++)
+        private static void ApplyVanillaDefaults(AircraftSelectionMenu menu, LoadoutSelector loadSelect)
         {
-            weaponSelectors[i].SetValue(defaultLoadout.weapons[i]);
+            var aircraft = MenuRefs.PreviewAircraft(menu);
+            if (aircraft == null || aircraft.definition == null)
+                return;
+
+            var parameters = aircraft.definition.aircraftParameters;
+            var weaponSelectors = MenuRefs.WeaponSelectors(loadSelect);
+
+            if (parameters?.loadouts != null && parameters.loadouts.Count > 0)
+            {
+                var defaultLoadout =
+                    parameters.loadouts.Count > 1
+                        ? parameters.loadouts[1]
+                        : parameters.loadouts[0];
+
+                int n = Math.Min(weaponSelectors.Count, defaultLoadout.weapons.Count);
+
+                for (int i = 0; i < n; i++)
+                {
+                    weaponSelectors[i].SetValue(defaultLoadout.weapons[i]);
+                }
+            }
+
+            loadSelect.UpdateWeapons(false);
+
+            var dd = MenuRefs.LiveryDropdown(loadSelect);
+            var opts = MenuRefs.LiveryOptions(loadSelect);
+
+            if (dd != null && opts != null && opts.Count > 0)
+            {
+                int livery = UnityEngine.Random.Range(0, opts.Count);
+                dd.SetValueWithoutNotify(livery);
+                loadSelect.SelectLivery();
+
+                aircraft.SetLiveryKey(aircraft.NetworkLiveryKey, true);
+            }
+
+            var fuelSlider = MenuRefs.FuelLevel(loadSelect);
+
+            if (fuelSlider != null)
+            {
+                float fuel = parameters != null
+                    ? parameters.DefaultFuelLevel
+                    : 1f;
+
+                fuelSlider.SetValueWithoutNotify(Mathf.Clamp01(fuel));
+                loadSelect.ChangeFuelLevel();
+            }
+
+            loadSelect.UpdateWeapons(true);
         }
-    }
-
-    loadSelect.UpdateWeapons(false);
-
-    var dd = MenuRefs.LiveryDropdown(loadSelect);
-    var opts = MenuRefs.LiveryOptions(loadSelect);
-
-    if (dd != null && opts != null && opts.Count > 0)
-    {
-        int livery = UnityEngine.Random.Range(0, opts.Count);
-        dd.SetValueWithoutNotify(livery);
-        loadSelect.SelectLivery();
-
-        aircraft.SetLiveryKey(aircraft.NetworkLiveryKey, true);
-    }
-
-    var fuelSlider = MenuRefs.FuelLevel(loadSelect);
-
-    if (fuelSlider != null)
-    {
-        float fuel = parameters != null
-            ? parameters.DefaultFuelLevel
-            : 1f;
-
-        fuelSlider.SetValueWithoutNotify(Mathf.Clamp01(fuel));
-        loadSelect.ChangeFuelLevel();
-    }
-
-    loadSelect.UpdateWeapons(true);
-}
 
         internal static void DeletePreset(AircraftDefinition def, string preset)
         {
