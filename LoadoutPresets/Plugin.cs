@@ -181,7 +181,7 @@ namespace LoadoutPresets
                 );
             }
 
-            loadSelect.UpdateWeapons(true);
+            loadSelect.UpdateWeapons(false);
 
             string wantLiveryKey = Get(section, LiveryKey, "") ?? "";
 
