@@ -95,7 +95,7 @@ namespace LoadoutPresets
         internal static bool IsSaved(AircraftDefinition def, string preset)
         {
             if (preset == Plugin.DEFAULTPRESET)
-                return true; // IMPORTANT: treat default as always valid
+                return true;
 
             return Get(PresetSection(def, preset), SavedKey, false);
         }
@@ -161,9 +161,8 @@ namespace LoadoutPresets
             string section = PresetSection(def, preset);
             bool hasSaved = Get(section, SavedKey, false);
 
-            if (!hasSaved || preset == Plugin.DEFAULTPRESET)
+            if (!hasSaved)
             {
-                ApplyVanillaDefaults(menu, loadSelect);
                 return true;
             }
 
@@ -187,19 +186,7 @@ namespace LoadoutPresets
 
             if (!string.IsNullOrEmpty(wantLiveryKey))
             {
-                TMP_Dropdown dd = MenuRefs.LiveryDropdown(loadSelect);
-                var opts = MenuRefs.LiveryOptions(loadSelect);
-
-                if (dd != null && opts != null && opts.Count > 0)
-                {
-                    int idx = opts.FindIndex(o => o.Item1.ToString() == wantLiveryKey);
-
-                    if (idx >= 0 && idx < opts.Count)
-                    {
-                        dd.SetValueWithoutNotify(idx);
-                        loadSelect.SelectLivery();
-                    }
-                }
+                menu.StartCoroutine(ApplyLiveryNextFrame(loadSelect, wantLiveryKey));
             }
 
             float fuel = Get(section, FuelKey, 1f);
@@ -214,8 +201,29 @@ namespace LoadoutPresets
             return true;
         }
 
-        private static void ApplyVanillaDefaults(AircraftSelectionMenu menu, LoadoutSelector loadSelect)
+        internal static System.Collections.IEnumerator ApplyLiveryNextFrame(LoadoutSelector loadSelect, string wantLiveryKey)
         {
+            yield return null;
+
+            TMP_Dropdown dd = MenuRefs.LiveryDropdown(loadSelect);
+            var opts = MenuRefs.LiveryOptions(loadSelect);
+
+            if (dd == null || opts == null || opts.Count == 0)
+                yield break;
+
+            int idx = opts.FindIndex(o => o.Item1.ToString() == wantLiveryKey);
+
+            if (idx >= 0 && idx < opts.Count)
+            {
+                dd.SetValueWithoutNotify(idx);
+                loadSelect.SelectLivery();
+            }
+        }
+
+        //Kept incase returning to the original re-implementation of default is wanted where we want to return to the original state the plane is in.
+        internal static void ApplyVanillaDefaults(AircraftSelectionMenu menu, LoadoutSelector loadSelect)
+        {
+            Plugin.Log.LogInfo("Firing ApplyVanillaDefaults");
             var aircraft = MenuRefs.PreviewAircraft(menu);
             if (aircraft == null || aircraft.definition == null)
                 return;
@@ -335,18 +343,42 @@ namespace LoadoutPresets
 
             PresetMenuUI.Attach(menu);
 
-            // IMPORTANT: delay preset apply ONE frame
             menu.StartCoroutine(ApplyAfterFrame(menu));
         }
 
         private static System.Collections.IEnumerator ApplyAfterFrame(AircraftSelectionMenu menu)
         {
-            yield return null; // wait for Unity to finish LoadDefaults internals
+            yield return null; // waits one frame
 
             var def = menu.GetSelectedType();
             var active = PresetIO.GetActivePreset(def);
 
             PresetIO.LoadPreset(menu, def, active);
+        }
+    }
+
+    [HarmonyPatch(typeof(LoadoutSelector), "UpdateWeapons")]
+    class Patch_AutoSave_Default
+    {
+        static void Postfix(LoadoutSelector __instance)
+        {
+            if (!Plugin.Enabled.Value) return;
+
+            var menu = __instance.GetComponentInParent<AircraftSelectionMenu>();
+            if (menu == null) return;
+
+            var def = menu.GetSelectedType();
+            if (def == null) return;
+
+            var selectors = MenuRefs.WeaponSelectors(__instance);
+            if (selectors == null || selectors.Count == 0) return;
+
+            if (!selectors.Any(s => s.GetValue() != null))
+                return;
+
+            PresetIO.SaveCurrentToPreset(menu, def, Plugin.DEFAULTPRESET);
+
+            Plugin.Log.LogInfo("Auto-saved last used.");
         }
     }
 
