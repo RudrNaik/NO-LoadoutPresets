@@ -184,6 +184,7 @@ namespace LoadoutPresets
             //Make sure not to spawn the weapons at first by setting the flag for spawning them to false.
             loadSelect.UpdateWeapons(false);
 
+
             //Handle fuel
             float fuel = Get(section, FuelKey, 1f);
             var fuelSlider = MenuRefs.FuelLevel(loadSelect);
@@ -200,7 +201,7 @@ namespace LoadoutPresets
                 menu.StartCoroutine(ApplyLiveryNextFrame(loadSelect, wantLiveryKey));
             }
 
-            
+
             menu.StartCoroutine(RebuildWeaponsNextFrame(preview));
 
             return true;
@@ -306,13 +307,6 @@ namespace LoadoutPresets
 
             PresetMenuUI.Attach(menu);
 
-            menu.StartCoroutine(ApplyAfterFrame(menu));
-        }
-
-        private static System.Collections.IEnumerator ApplyAfterFrame(AircraftSelectionMenu menu)
-        {
-            yield return null; // waits one frame
-
             var def = menu.GetSelectedType();
             var active = PresetIO.GetActivePreset(def);
 
@@ -390,7 +384,7 @@ namespace LoadoutPresets
             {
                 dd.SetValueWithoutNotify(idx);
                 loadSelect.SelectLivery();
-                
+
             }
         }
     }
