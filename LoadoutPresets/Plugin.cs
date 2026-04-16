@@ -77,9 +77,9 @@ namespace LoadoutPresets
         private static ConfigEntry<T> Entry<T>(string section, string key, T def) =>
             Plugin.Cfg.Bind(section, key, def);
 
-        private static T Get<T>(string section, string key, T def) => Entry(section, key, def).Value;
+        internal static T Get<T>(string section, string key, T def) => Entry(section, key, def).Value;
 
-        private static void Set<T>(string section, string key, T def, T value) => Entry(section, key, def).Value = value;
+        internal static void Set<T>(string section, string key, T def, T value) => Entry(section, key, def).Value = value;
 
         internal static string BaseSection(AircraftDefinition def) => $"Aircraft:{def.unitName}";
 
@@ -153,8 +153,10 @@ namespace LoadoutPresets
                 return false;
 
             Aircraft preview = MenuRefs.PreviewAircraft(menu);
-            HardpointSet[] sets = preview?.weaponManager?.hardpointSets;
+            if (preview == null || preview.weaponManager == null)
+                return false;
 
+            var sets = preview.weaponManager.hardpointSets;
             if (sets == null)
                 return false;
 
@@ -162,13 +164,12 @@ namespace LoadoutPresets
             bool hasSaved = Get(section, SavedKey, false);
 
             if (!hasSaved)
-            {
                 return true;
-            }
 
             var weaponSelectors = MenuRefs.WeaponSelectors(loadSelect);
             int n = Math.Min(weaponSelectors.Count, sets.Length);
 
+            //Apply weapon selection without spawning.
             for (int i = 0; i < n; i++)
             {
                 string key = Get(section, HpKey(i), "") ?? "";
@@ -180,17 +181,11 @@ namespace LoadoutPresets
                 );
             }
 
-            loadSelect.UpdateWeapons(true);
+            //Make sure not to spawn the weapons at first by setting the flag for spawning them to false.
+            loadSelect.UpdateWeapons(false);
 
-            string wantLiveryKey = Get(section, LiveryKey, "") ?? "";
-
-            if (!string.IsNullOrEmpty(wantLiveryKey))
-            {
-                menu.StartCoroutine(ApplyLiveryNextFrame(loadSelect, wantLiveryKey));
-            }
-
+            //Handle fuel
             float fuel = Get(section, FuelKey, 1f);
-
             var fuelSlider = MenuRefs.FuelLevel(loadSelect);
             if (fuelSlider != null)
             {
@@ -198,7 +193,30 @@ namespace LoadoutPresets
                 loadSelect.ChangeFuelLevel();
             }
 
+            //Handle Liveries
+            string wantLiveryKey = Get(section, LiveryKey, "") ?? "";
+            if (!string.IsNullOrEmpty(wantLiveryKey))
+            {
+                menu.StartCoroutine(ApplyLiveryNextFrame(loadSelect, wantLiveryKey));
+            }
+
+            
+            menu.StartCoroutine(RebuildWeaponsNextFrame(preview));
+
             return true;
+        }
+
+        internal static System.Collections.IEnumerator RebuildWeaponsNextFrame(Aircraft aircraft)
+        {
+            yield return null; //wait one frame.
+
+            var wm = aircraft.weaponManager;
+            if (wm == null)
+                yield break;
+
+            //Clean and then spawn so we dont have that weird duplication.
+            wm.RemoveWeapons();
+            wm.SpawnWeapons();
         }
 
         internal static System.Collections.IEnumerator ApplyLiveryNextFrame(LoadoutSelector loadSelect, string wantLiveryKey)
@@ -218,61 +236,6 @@ namespace LoadoutPresets
                 dd.SetValueWithoutNotify(idx);
                 loadSelect.SelectLivery();
             }
-        }
-
-        //Kept incase returning to the original re-implementation of default is wanted where we want to return to the original state the plane is in.
-        internal static void ApplyVanillaDefaults(AircraftSelectionMenu menu, LoadoutSelector loadSelect)
-        {
-            Plugin.Log.LogInfo("Firing ApplyVanillaDefaults");
-            var aircraft = MenuRefs.PreviewAircraft(menu);
-            if (aircraft == null || aircraft.definition == null)
-                return;
-
-            var parameters = aircraft.definition.aircraftParameters;
-            var weaponSelectors = MenuRefs.WeaponSelectors(loadSelect);
-
-            if (parameters?.loadouts != null && parameters.loadouts.Count > 0)
-            {
-                var defaultLoadout =
-                    parameters.loadouts.Count > 1
-                        ? parameters.loadouts[1]
-                        : parameters.loadouts[0];
-
-                int n = Math.Min(weaponSelectors.Count, defaultLoadout.weapons.Count);
-
-                for (int i = 0; i < n; i++)
-                {
-                    weaponSelectors[i].SetValue(defaultLoadout.weapons[i]);
-                }
-            }
-
-            loadSelect.UpdateWeapons(false);
-
-            var dd = MenuRefs.LiveryDropdown(loadSelect);
-            var opts = MenuRefs.LiveryOptions(loadSelect);
-
-            if (dd != null && opts != null && opts.Count > 0)
-            {
-                int livery = UnityEngine.Random.Range(0, opts.Count);
-                dd.SetValueWithoutNotify(livery);
-                loadSelect.SelectLivery();
-
-                aircraft.SetLiveryKey(aircraft.NetworkLiveryKey, true);
-            }
-
-            var fuelSlider = MenuRefs.FuelLevel(loadSelect);
-
-            if (fuelSlider != null)
-            {
-                float fuel = parameters != null
-                    ? parameters.DefaultFuelLevel
-                    : 1f;
-
-                fuelSlider.SetValueWithoutNotify(Mathf.Clamp01(fuel));
-                loadSelect.ChangeFuelLevel();
-            }
-
-            loadSelect.UpdateWeapons(true);
         }
 
         internal static void DeletePreset(AircraftDefinition def, string preset)
@@ -379,6 +342,56 @@ namespace LoadoutPresets
             PresetIO.SaveCurrentToPreset(menu, def, Plugin.DEFAULTPRESET);
 
             Plugin.Log.LogInfo("Auto-saved last used.");
+        }
+    }
+
+    [HarmonyPatch(typeof(LoadoutSelector), "AssignAircraft")]
+    internal static class Patch_AssignAircraft
+    {
+        static void Postfix(LoadoutSelector __instance)
+        {
+            if (!Plugin.Enabled.Value) return;
+
+            var menu = __instance.GetComponentInParent<AircraftSelectionMenu>();
+            if (menu == null) return;
+
+            var def = menu.GetSelectedType();
+            if (def == null) return;
+
+            // Wait one frame so vanilla finishes its randomization
+            menu.StartCoroutine(FixLiveryNextFrame(__instance, def));
+        }
+
+        private static System.Collections.IEnumerator FixLiveryNextFrame(
+            LoadoutSelector loadSelect,
+            AircraftDefinition def)
+        {
+            yield return null;
+
+            string active = PresetIO.GetActivePreset(def);
+            string section = PresetIO.PresetSection(def, active);
+            Aircraft previewPlane = MenuRefs.PreviewAircraft();
+
+            string wantLiveryKey = PresetIO.Get<string>(section, "Livery", "");
+
+            // If no saved livery, break.
+            if (string.IsNullOrEmpty(wantLiveryKey))
+                yield break;
+
+            var dd = MenuRefs.LiveryDropdown(loadSelect);
+            var opts = MenuRefs.LiveryOptions(loadSelect);
+
+            if (dd == null || opts == null || opts.Count == 0)
+                yield break;
+
+            int idx = opts.FindIndex(o => o.Item1.ToString() == wantLiveryKey);
+
+            if (idx >= 0)
+            {
+                dd.SetValueWithoutNotify(idx);
+                loadSelect.SelectLivery();
+                
+            }
         }
     }
 
