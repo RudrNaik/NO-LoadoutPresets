@@ -161,9 +161,8 @@ namespace LoadoutPresets
             string section = PresetSection(def, preset);
             bool hasSaved = Get(section, SavedKey, false);
 
-            if (!hasSaved || preset == Plugin.DEFAULTPRESET)
+            if (!hasSaved)
             {
-                //ApplyVanillaDefaults(menu, loadSelect);
                 return true;
             }
 
@@ -181,13 +180,13 @@ namespace LoadoutPresets
                 );
             }
 
-            loadSelect.UpdateWeapons(false);
+            loadSelect.UpdateWeapons(true);
 
             string wantLiveryKey = Get(section, LiveryKey, "") ?? "";
 
             if (!string.IsNullOrEmpty(wantLiveryKey))
             {
-                menu.StartCoroutine(ApplyLiveryNextFrame(menu, loadSelect, wantLiveryKey));
+                menu.StartCoroutine(ApplyLiveryNextFrame(loadSelect, wantLiveryKey));
             }
 
             float fuel = Get(section, FuelKey, 1f);
@@ -202,10 +201,8 @@ namespace LoadoutPresets
             return true;
         }
 
-        internal static System.Collections.IEnumerator ApplyLiveryNextFrame(AircraftSelectionMenu menu, LoadoutSelector loadSelect, string wantLiveryKey)
+        internal static System.Collections.IEnumerator ApplyLiveryNextFrame(LoadoutSelector loadSelect, string wantLiveryKey)
         {
-            yield return null;
-            yield return null;
             yield return null;
 
             TMP_Dropdown dd = MenuRefs.LiveryDropdown(loadSelect);
@@ -216,19 +213,10 @@ namespace LoadoutPresets
 
             int idx = opts.FindIndex(o => o.Item1.ToString() == wantLiveryKey);
 
-            if (idx < 0 || idx >= opts.Count)
-                yield break;
-
-            dd.SetValueWithoutNotify(idx);
-            loadSelect.SelectLivery();
-
-            var aircraft = MenuRefs.PreviewAircraft(menu);
-            if (aircraft != null)
+            if (idx >= 0 && idx < opts.Count)
             {
-                if (Enum.TryParse<LiveryKey>(wantLiveryKey, out var key))
-                {
-                    aircraft.SetLiveryKey(key, true);
-                }
+                dd.SetValueWithoutNotify(idx);
+                loadSelect.SelectLivery();
             }
         }
 
@@ -452,7 +440,7 @@ namespace LoadoutPresets
         private static void Window(AircraftSelectionMenu menu, AircraftDefinition def)
         {
             string active = PresetIO.GetActivePreset(def);
-            string focus = (string.IsNullOrWhiteSpace(_selected) || (_selected == "DEFAULT")) ? active : _selected;
+            string focus = string.IsNullOrWhiteSpace(_selected) ? active : _selected;
             GUILayout.BeginVertical();
 
             for (int i = 0; i < _presets.Count; i++)
