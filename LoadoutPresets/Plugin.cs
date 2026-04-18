@@ -403,9 +403,12 @@ namespace LoadoutPresets
         private static bool _confirmDelete;
 
         private static Rect _rect = new(10, 10, 220, 200);
+        private static float right_Padding = 5f;
         private static float _desiredH;
         private static string _cachedUnitName = "";
         private static List<string> _presets = [];
+
+        private static string _currentTooltip = "";
 
         internal static void Attach(AircraftSelectionMenu menu)
         {
@@ -441,9 +444,33 @@ namespace LoadoutPresets
             _rect.y = Screen.height * 0.2f;
 
             _rect.width = _edit ? 320f : 180f;
-            _rect.x = Screen.width - _rect.width;
+            _rect.x = Screen.width - _rect.width - right_Padding;
 
             _rect = GUI.Window(2082, _rect, _ => Window(menu, def), "Loadout Presets");
+            DrawTooltip();
+        }
+
+        private static void DrawTooltip()
+        {
+            if (string.IsNullOrEmpty(_currentTooltip))
+                return;
+
+            int oldDepth = GUI.depth;
+            GUI.depth = -1000; // force on top
+
+            Vector2 mouse = Event.current.mousePosition;
+            mouse = GUIUtility.GUIToScreenPoint(mouse);
+
+            Vector2 size = GUI.skin.box.CalcSize(new GUIContent(_currentTooltip));
+
+            Rect rect = new Rect(
+                mouse.x - size.x - 15f,
+                mouse.y + 15f,
+                size.x + 10f,
+                size.y + 6f
+            );
+
+            GUI.Box(rect, _currentTooltip);
         }
 
         private static void Window(AircraftSelectionMenu menu, AircraftDefinition def)
@@ -451,6 +478,8 @@ namespace LoadoutPresets
             string active = PresetIO.GetActivePreset(def);
             string focus = string.IsNullOrWhiteSpace(_selected) ? active : _selected;
             GUILayout.BeginVertical();
+            
+            
 
             for (int i = 0; i < _presets.Count; i++)
             {
@@ -472,12 +501,15 @@ namespace LoadoutPresets
             {
                 GUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
-                if (GUILayout.Button("Edit", GUILayout.Width(70f)))
+                GUIContent editContent = new GUIContent("Edit", "Edit, create, or delete loadout presets");
+
+                if (GUILayout.Button(editContent, GUILayout.Width(70f)))
                 {
                     _edit = true;
                     _selected = _name = active;
                     _confirmDelete = false;
                 }
+                
                 GUILayout.EndHorizontal();
             }
             else
@@ -566,6 +598,12 @@ namespace LoadoutPresets
             }
 
             GUILayout.EndVertical();
+
+            if (Event.current.type == EventType.Repaint)
+            {
+                _desiredH = Mathf.Max(80, GUILayoutUtility.GetLastRect().yMax + 22);
+                _currentTooltip = GUI.tooltip; // capture it here
+            }
 
             if (Event.current.type == EventType.Repaint)
                 _desiredH = Mathf.Max(80, GUILayoutUtility.GetLastRect().yMax + 22);
