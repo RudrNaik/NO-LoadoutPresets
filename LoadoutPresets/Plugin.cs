@@ -141,6 +141,8 @@ namespace LoadoutPresets
             Plugin.Cfg.Save();
             Plugin.Log.LogInfo($"[Presets] Loaded {preset}:{def.unitName} {(applied ? "" : "(no saved preset yet)")} ");
 
+            ApplyPreset(menu, def, preset);
+
             return applied;
         }
 
