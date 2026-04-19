@@ -10,3 +10,5 @@ Requirements: [BepInEx 5](https://github.com/BepInEx/BepInEx) [Install Instructi
 - `New` create a new preset with the specified name, the following characters are not allowed: `=` `\` `"` `'` `[` `]` `\r` `\n` `\t`.
 - `Apply` update the selected preset with current loadout and name.
 - `Delete` delete the selected preset, will request confirmation
+
+Original credit for the mod goes to Nikkorap.
