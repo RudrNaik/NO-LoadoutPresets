@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Reflection;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
@@ -141,7 +142,6 @@ namespace LoadoutPresets
             Plugin.Cfg.Save();
             Plugin.Log.LogInfo($"[Presets] Loaded {preset}:{def.unitName} {(applied ? "" : "(no saved preset yet)")} ");
 
-            ApplyPreset(menu, def, preset);
 
             return applied;
         }
@@ -184,7 +184,7 @@ namespace LoadoutPresets
             }
 
             //Make sure not to spawn the weapons at first by setting the flag for spawning them to false.
-            loadSelect.UpdateWeapons(false);
+            loadSelect.UpdateWeapons(true);
 
 
             //Handle fuel
@@ -204,22 +204,23 @@ namespace LoadoutPresets
             }
 
 
-            menu.StartCoroutine(RebuildWeaponsNextFrame(preview));
+            menu.StartCoroutine(RebuildWeaponsNextFrame(menu, preview));
 
             return true;
         }
 
-        internal static System.Collections.IEnumerator RebuildWeaponsNextFrame(Aircraft aircraft)
+        internal static System.Collections.IEnumerator RebuildWeaponsNextFrame(AircraftSelectionMenu menu, Aircraft aircraft)
         {
-            yield return null; //wait one frame.
+            yield return null;
 
             var wm = aircraft.weaponManager;
             if (wm == null)
                 yield break;
 
-            //Clean and then spawn so we dont have that weird duplication.
-            wm.RemoveWeapons();
-            wm.SpawnWeapons();
+            // Force trigger the update that would normally happen when you touch a UI component which fixes the errors with mismatching values.
+            var method = typeof(AircraftSelectionMenu).GetMethod("AircraftSelectionMenu_OnChange",BindingFlags.NonPublic | BindingFlags.Instance);
+
+            method?.Invoke(menu, null);
         }
 
         internal static System.Collections.IEnumerator ApplyLiveryNextFrame(LoadoutSelector loadSelect, string wantLiveryKey)
