@@ -295,6 +295,93 @@ namespace LoadoutPresets
             list.AddRange(rest);
             return list;
         }
+
+        internal static string ResolveWeaponName(AircraftSelectionMenu menu, string jsonKey)
+        {
+            if (string.IsNullOrEmpty(jsonKey))
+                return null;
+
+            var aircraft = MenuRefs.PreviewAircraft(menu);
+            if (aircraft?.weaponManager == null)
+                return jsonKey;
+
+            var sets = aircraft.weaponManager.hardpointSets;
+            if (sets == null)
+                return jsonKey;
+
+            foreach (var set in sets)
+            {
+                if (set?.weaponOptions == null) continue;
+
+                var match = set.weaponOptions
+                    .FirstOrDefault(w => w != null && w.jsonKey == jsonKey);
+
+                if (match != null)
+                {
+                    return match.mountName; 
+                }
+            }
+
+            return jsonKey; 
+        }
+
+        internal static string BuildPresetTooltip(AircraftSelectionMenu menu, AircraftDefinition def, string preset)
+        {
+            preset = Norm(preset);
+
+            string section = PresetSection(def, preset);
+
+            if (!Get(section, SavedKey, false))
+                return preset == Plugin.DEFAULTPRESET
+                    ? "Current live loadout (auto-saved)"
+                    : "No saved data";
+
+            System.Text.StringBuilder sb = new();
+
+            sb.AppendLine($"Preset: {preset}");
+
+            // Fuel
+            float fuel = Get(section, FuelKey, 1f);
+            sb.AppendLine($"Fuel: {(int)(fuel * 100f)}%");
+
+            // Livery
+            string livery = Get(section, LiveryKey, "");
+            if (!string.IsNullOrEmpty(livery))
+                sb.AppendLine($"Livery: {livery}");
+
+            // Weapons
+            var counts = new Dictionary<string, int>();
+
+            for (int i = 0; i < 20; i++)
+            {
+                string key = Get<string>(section, HpKey(i), "");
+                if (string.IsNullOrEmpty(key))
+                    continue;
+
+                if (!counts.ContainsKey(key))
+                    counts[key] = 0;
+
+                counts[key]++;
+            }
+
+            if (counts.Count == 0)
+            {
+                sb.AppendLine("Weapons: None");
+            }
+            else
+            {
+                sb.AppendLine("Weapons:");
+
+                foreach (var kv in counts.OrderByDescending(k => k.Value))
+                {
+                    string displayName = ResolveWeaponName(menu, kv.Key);
+
+                    sb.AppendLine($"  {displayName} x{kv.Value}");
+                }
+            }
+
+            return sb.ToString();
+        }
     }
 
     [HarmonyPatch(typeof(LoadoutSelector), "LoadDefaults")]
@@ -455,7 +542,6 @@ namespace LoadoutPresets
             if (string.IsNullOrEmpty(_currentTooltip))
                 return;
 
-            int oldDepth = GUI.depth;
             GUI.depth = -1000; // force on top
 
             Vector2 mouse = Event.current.mousePosition;
@@ -470,15 +556,19 @@ namespace LoadoutPresets
                 size.y + 6f
             );
 
+            GUI.color = new Color(1f, 1f, 1f, 2f);
+
             GUI.Box(rect, _currentTooltip);
         }
 
         private static void Window(AircraftSelectionMenu menu, AircraftDefinition def)
         {
+            _currentTooltip = GUI.tooltip;
+
             string active = PresetIO.GetActivePreset(def);
             string focus = string.IsNullOrWhiteSpace(_selected) ? active : _selected;
             GUILayout.BeginVertical();
-            
+
             
 
             for (int i = 0; i < _presets.Count; i++)
@@ -487,7 +577,9 @@ namespace LoadoutPresets
                 bool isFocus = string.Equals(p, focus, StringComparison.Ordinal);
                 GUIStyle style = isFocus ? GUI.skin.label : GUI.skin.button;
 
-                if (GUILayout.Button(p, style))
+                GUIContent loadoutContent = new GUIContent(p, PresetIO.BuildPresetTooltip(menu, def, p));
+
+                if (GUILayout.Button(loadoutContent, style))
                 {
                     PresetIO.LoadPreset(menu, def, p);
                     _selected = _name = focus = p;
@@ -602,11 +694,8 @@ namespace LoadoutPresets
             if (Event.current.type == EventType.Repaint)
             {
                 _desiredH = Mathf.Max(80, GUILayoutUtility.GetLastRect().yMax + 22);
-                _currentTooltip = GUI.tooltip; // capture it here
+                _currentTooltip = GUI.tooltip;
             }
-
-            if (Event.current.type == EventType.Repaint)
-                _desiredH = Mathf.Max(80, GUILayoutUtility.GetLastRect().yMax + 22);
         }
     }
 }
