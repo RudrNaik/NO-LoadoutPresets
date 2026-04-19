@@ -217,6 +217,9 @@ namespace LoadoutPresets
             if (wm == null)
                 yield break;
 
+            wm.RemoveWeapons();
+            wm.SpawnWeapons();
+
             // Force trigger the update that would normally happen when you touch a UI component which fixes the errors with mismatching values.
             var method = typeof(AircraftSelectionMenu).GetMethod("AircraftSelectionMenu_OnChange",BindingFlags.NonPublic | BindingFlags.Instance);
 
