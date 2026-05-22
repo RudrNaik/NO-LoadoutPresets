@@ -294,15 +294,44 @@ namespace LoadoutPresets
                     string key =
                         Get(section, HpKey(i), "") ?? "";
 
-                    weaponSelectors[i].SetValue(
-                        string.IsNullOrEmpty(key)
-                            ? null
-                            : sets[i]
-                                .weaponOptions
-                                .Find(w =>
+                    WeaponMount resolved = null;
+
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        resolved = sets[i]
+                            .weaponOptions?
+                            .Find(w =>
+                                w != null &&
+                                w.jsonKey == key);
+
+                        if (resolved == null)
+                        {
+                            resolved = Resources
+                                .FindObjectsOfTypeAll<WeaponMount>()
+                                .FirstOrDefault(w =>
                                     w != null &&
-                                    w.jsonKey == key)
-                    );
+                                    w.jsonKey == key);
+
+                            if (resolved != null)
+                            {
+                                Plugin.Log.LogInfo(
+                                    $"[Presets] Resolved unrestricted weapon '{key}' globally."
+                                );
+                            }
+                        }
+
+                        if (resolved != null &&
+                            !sets[i].weaponOptions.Contains(resolved))
+                        {
+                            sets[i].weaponOptions.Add(resolved);
+
+                            Plugin.Log.LogInfo(
+                                $"[Presets] Injected unrestricted weapon '{resolved.jsonKey}' into hardpoint {i}."
+                            );
+                        }
+                    }
+
+                    weaponSelectors[i].SetValue(resolved);
                 }
 
                 loadSelect.UpdateWeapons(true);
