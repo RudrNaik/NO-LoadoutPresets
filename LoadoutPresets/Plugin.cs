@@ -128,31 +128,18 @@ namespace LoadoutPresets
             string preset
         ) => Set(
             BaseSection(def),
-            ActiveKey,
-            Plugin.DEFAULTPRESET,
-            Norm(preset)
+            ActiveKey,Plugin.DEFAULTPRESET, Norm(preset)
         );
 
-        internal static bool IsSaved(
-            AircraftDefinition def,
-            string preset
-        )
+        internal static bool IsSaved(AircraftDefinition def,string preset)
         {
             if (preset == Plugin.DEFAULTPRESET)
                 return true;
 
-            return Get(
-                PresetSection(def, preset),
-                SavedKey,
-                false
-            );
+            return Get(PresetSection(def, preset),SavedKey,false);
         }
 
-        internal static void SaveCurrentToPreset(
-            AircraftSelectionMenu menu,
-            AircraftDefinition def,
-            string preset
-        )
+        internal static void SaveCurrentToPreset(AircraftSelectionMenu menu,AircraftDefinition def,string preset)
         {
             if (string.IsNullOrWhiteSpace(preset))
                 return;
@@ -200,12 +187,7 @@ namespace LoadoutPresets
                 {
                     WeaponMount mount = selectors[i].GetValue();
 
-                    Set(
-                        section,
-                        HpKey(i),
-                        "",
-                        mount?.jsonKey ?? ""
-                    );
+                    Set(section,HpKey(i),"",mount?.jsonKey ?? "");
                 }
             }
 
@@ -220,15 +202,11 @@ namespace LoadoutPresets
         {
             preset = Norm(preset);
 
-            bool applied =
-                ApplyPreset(menu, def, preset);
+            bool applied = ApplyPreset(menu, def, preset);
 
             Plugin.Cfg.Save();
 
-            Plugin.Log.LogInfo(
-                $"[Presets] Loaded {preset}:{def.unitName} " +
-                $"{(applied ? "" : "(no saved preset yet)")}"
-            );
+            Plugin.Log.LogInfo($"[Presets] Loaded {preset}:{def.unitName} " + $"{(applied ? "" : "(no saved preset yet)")}");
 
             return applied;
         }
@@ -270,13 +248,9 @@ namespace LoadoutPresets
 
             try
             {
-                var weaponSelectors =
-                    MenuRefs.WeaponSelectors(loadSelect);
+                var weaponSelectors = MenuRefs.WeaponSelectors(loadSelect);
 
-                int n = Math.Min(
-                    weaponSelectors.Count,
-                    sets.Length
-                );
+                int n = Math.Min(weaponSelectors.Count,sets.Length);
 
                 for (int i = 0; i < n; i++)
                 {
@@ -296,40 +270,25 @@ namespace LoadoutPresets
 
                 loadSelect.UpdateWeapons(true);
 
-                float fuel =
-                    Get(section, FuelKey, 1f);
+                float fuel = Get(section, FuelKey, 1f);
 
-                var fuelSlider =
-                    MenuRefs.FuelLevel(loadSelect);
+                var fuelSlider =MenuRefs.FuelLevel(loadSelect);
 
                 if (fuelSlider != null)
                 {
-                    fuelSlider.SetValueWithoutNotify(
-                        Mathf.Clamp01(fuel)
-                    );
+                    fuelSlider.SetValueWithoutNotify(Mathf.Clamp01(fuel));
 
                     loadSelect.ChangeFuelLevel();
                 }
 
-                string wantLiveryKey =
-                    Get(section, LiveryKey, "") ?? "";
+                string wantLiveryKey =Get(section, LiveryKey, "") ?? "";
 
                 if (!string.IsNullOrEmpty(wantLiveryKey))
                 {
-                    menu.StartCoroutine(
-                        ApplyLiveryNextFrame(
-                            loadSelect,
-                            wantLiveryKey
-                        )
-                    );
+                    menu.StartCoroutine(ApplyLiveryNextFrame(loadSelect,wantLiveryKey));
                 }
 
-                menu.StartCoroutine(
-                    RebuildWeaponsNextFrame(
-                        menu,
-                        preview
-                    )
-                );
+                menu.StartCoroutine(RebuildWeaponsNextFrame(menu,preview));
             }
             finally
             {
@@ -339,11 +298,7 @@ namespace LoadoutPresets
             return true;
         }
 
-        internal static System.Collections.IEnumerator
-            RebuildWeaponsNextFrame(
-                AircraftSelectionMenu menu,
-                Aircraft aircraft
-            )
+        internal static System.Collections.IEnumerator RebuildWeaponsNextFrame(AircraftSelectionMenu menu, Aircraft aircraft)
         {
             yield return null;
 
@@ -355,42 +310,26 @@ namespace LoadoutPresets
             wm.RemoveWeapons();
             wm.SpawnWeapons();
 
-            var method =
-                typeof(AircraftSelectionMenu)
-                .GetMethod(
-                    "AircraftSelectionMenu_OnChange",
-                    BindingFlags.NonPublic |
-                    BindingFlags.Instance
-                );
+            var method =typeof(AircraftSelectionMenu).GetMethod("AircraftSelectionMenu_OnChange", BindingFlags.NonPublic | BindingFlags.Instance);
 
             method?.Invoke(menu, null);
         }
 
-        internal static System.Collections.IEnumerator
-            ApplyLiveryNextFrame(
-                LoadoutSelector loadSelect,
-                string wantLiveryKey
-            )
+        internal static System.Collections.IEnumerator ApplyLiveryNextFrame(LoadoutSelector loadSelect,string wantLiveryKey)
         {
             yield return null;
 
-            TMP_Dropdown dd =
-                MenuRefs.LiveryDropdown(loadSelect);
+            TMP_Dropdown dd = MenuRefs.LiveryDropdown(loadSelect);
 
-            var opts =
-                MenuRefs.LiveryOptions(loadSelect);
+            var opts = MenuRefs.LiveryOptions(loadSelect);
 
-            if (dd == null ||
-                opts == null ||
-                opts.Count == 0)
+            if (dd == null || opts == null || opts.Count == 0)
             {
                 yield break;
             }
 
             int idx =
-                opts.FindIndex(
-                    o => o.Item1.ToString() == wantLiveryKey
-                );
+                opts.FindIndex(o => o.Item1.ToString() == wantLiveryKey);
 
             if (idx >= 0 && idx < opts.Count)
             {
@@ -399,87 +338,58 @@ namespace LoadoutPresets
             }
         }
 
-        internal static void DeletePreset(
-            AircraftDefinition def,
-            string preset
-        )
+        internal static void DeletePreset(AircraftDefinition def, string preset )
         {
             preset = preset?.Trim();
 
-            if (string.IsNullOrWhiteSpace(preset) ||
-                preset == Plugin.DEFAULTPRESET)
+            if (string.IsNullOrWhiteSpace(preset) || preset == Plugin.DEFAULTPRESET)
             {
                 return;
             }
 
-            string section =
-                PresetSection(def, preset);
+            string section = PresetSection(def, preset);
 
             foreach (var k in Plugin.Cfg.Keys.ToArray())
             {
-                if (string.Equals(
-                    k.Section,
-                    section,
-                    StringComparison.Ordinal))
+                if (string.Equals(k.Section,section,StringComparison.Ordinal))
                 {
                     Plugin.Cfg.Remove(k);
                 }
             }
 
-            if (string.Equals(
-                GetActivePreset(def),
-                preset,
-                StringComparison.Ordinal))
+            if (string.Equals(GetActivePreset(def),preset,StringComparison.Ordinal))
             {
-                SetActivePreset(
-                    def,
-                    Plugin.DEFAULTPRESET
-                );
+                SetActivePreset(def, Plugin.DEFAULTPRESET);
             }
 
             Plugin.Cfg.Save();
             Plugin.Cfg.Reload();
         }
 
-        internal static List<string> ListPresets(
-            AircraftDefinition def
-        )
+        internal static List<string> ListPresets(AircraftDefinition def)
         {
-            HashSet<string> names =
-                new(StringComparer.Ordinal)
-                {
+            HashSet<string> names = new(StringComparer.Ordinal)
+            {
                     Plugin.DEFAULTPRESET
-                };
+            };
 
             try
             {
-                string path =
-                    Plugin.Cfg.ConfigFilePath;
+                string path = Plugin.Cfg.ConfigFilePath;
 
                 if (File.Exists(path))
                 {
-                    string prefix =
-                        $"[{BaseSection(def)}:";
+                    string prefix = $"[{BaseSection(def)}:";
 
                     foreach (string line in File.ReadLines(path))
                     {
-                        if (!line.StartsWith(
-                            prefix,
-                            StringComparison.Ordinal))
+                        if (!line.StartsWith(prefix,StringComparison.Ordinal))
                             continue;
 
-                        if (!line.EndsWith(
-                            "]",
-                            StringComparison.Ordinal))
+                        if (!line.EndsWith("]",StringComparison.Ordinal))
                             continue;
 
-                        string name =
-                            line.Substring(
-                                prefix.Length,
-                                line.Length -
-                                prefix.Length -
-                                1
-                            ).Trim();
+                        string name = line.Substring(prefix.Length, line.Length -prefix.Length -1).Trim();
 
                         if (name.Length != 0)
                             names.Add(name);
@@ -490,8 +400,7 @@ namespace LoadoutPresets
             {
             }
 
-            List<string> list =
-                new() { Plugin.DEFAULTPRESET };
+            List<string> list = new() { Plugin.DEFAULTPRESET };
 
             List<string> rest = new();
 
@@ -511,10 +420,7 @@ namespace LoadoutPresets
             return list;
         }
 
-        internal static string ResolveWeaponName(
-            AircraftSelectionMenu menu,
-            string jsonKey
-        )
+        internal static string ResolveWeaponName(AircraftSelectionMenu menu,string jsonKey)
         {
             if (string.IsNullOrEmpty(jsonKey))
                 return null;
@@ -525,8 +431,7 @@ namespace LoadoutPresets
             if (aircraft?.weaponManager == null)
                 return jsonKey;
 
-            var sets =
-                aircraft.weaponManager.hardpointSets;
+            var sets = aircraft.weaponManager.hardpointSets;
 
             if (sets == null)
                 return jsonKey;
@@ -537,11 +442,7 @@ namespace LoadoutPresets
                     continue;
 
                 var match =
-                    set.weaponOptions.FirstOrDefault(
-                        w =>
-                            w != null &&
-                            w.jsonKey == jsonKey
-                    );
+                    set.weaponOptions.FirstOrDefault(w => w != null &&w.jsonKey == jsonKey);
 
                 if (match != null)
                     return match.mountName;
@@ -550,16 +451,12 @@ namespace LoadoutPresets
             return jsonKey;
         }
 
-        internal static string BuildPresetTooltip(
-            AircraftSelectionMenu menu,
-            AircraftDefinition def,
-            string preset
+        internal static string BuildPresetTooltip(AircraftSelectionMenu menu, AircraftDefinition def, string preset
         )
         {
             preset = Norm(preset);
 
-            string section =
-                PresetSection(def, preset);
+            string section = PresetSection(def, preset);
 
             if (!Get(section, SavedKey, false))
             {
@@ -572,12 +469,9 @@ namespace LoadoutPresets
 
             sb.AppendLine($"Preset: {preset}");
 
-            float fuel =
-                Get(section, FuelKey, 1f);
+            float fuel = Get(section, FuelKey, 1f);
 
-            sb.AppendLine(
-                $"Fuel: {(int)(fuel * 100f)}%"
-            );
+            sb.AppendLine($"Fuel: {(int)(fuel * 100f)}%");
 
             string livery =
                 Get(section, LiveryKey, "");
@@ -587,17 +481,12 @@ namespace LoadoutPresets
                 sb.AppendLine($"Livery: {livery}");
             }
 
-            var counts =
-                new Dictionary<string, int>();
+            var counts = new Dictionary<string, int>();
 
             for (int i = 0; i < 20; i++)
             {
                 string key =
-                    Get<string>(
-                        section,
-                        HpKey(i),
-                        ""
-                    );
+                    Get<string>(section,HpKey(i),"");
 
                 if (string.IsNullOrEmpty(key))
                     continue;
@@ -618,12 +507,8 @@ namespace LoadoutPresets
 
                 foreach (var kv in counts.OrderByDescending(k => k.Value))
                 {
-                    string displayName =
-                        ResolveWeaponName(menu, kv.Key);
-
-                    sb.AppendLine(
-                        $"  {displayName} x{kv.Value}"
-                    );
+                    string displayName = ResolveWeaponName(menu, kv.Key);
+                    sb.AppendLine($"{displayName} x{kv.Value}");
                 }
             }
 
@@ -636,8 +521,6 @@ namespace LoadoutPresets
     {
         static bool Prefix()
         {
-            // Completely block vanilla default loading.
-            // We handle EVERYTHING ourselves.
             return false;
         }
 
@@ -646,8 +529,7 @@ namespace LoadoutPresets
             if (!Plugin.Enabled.Value)
                 return;
 
-            var menu =
-                __instance.GetComponentInParent<AircraftSelectionMenu>();
+            var menu = __instance.GetComponentInParent<AircraftSelectionMenu>();
 
             if (menu == null)
                 return;
@@ -659,10 +541,7 @@ namespace LoadoutPresets
             if (def == null)
                 return;
 
-            PresetIO.LoadPreset(
-                menu,
-                def,
-                Plugin.DEFAULTPRESET
+            PresetIO.LoadPreset(menu,def,Plugin.DEFAULTPRESET
             );
         }
     }
@@ -675,9 +554,7 @@ namespace LoadoutPresets
             AutoSave(__instance);
         }
 
-        internal static void AutoSave(
-            LoadoutSelector __instance
-        )
+        internal static void AutoSave(LoadoutSelector __instance)
         {
             if (!Plugin.Enabled.Value)
                 return;
@@ -685,8 +562,7 @@ namespace LoadoutPresets
             if (PresetIO.IsApplyingPreset)
                 return;
 
-            var menu =
-                __instance.GetComponentInParent<AircraftSelectionMenu>();
+            var menu = __instance.GetComponentInParent<AircraftSelectionMenu>();
 
             if (menu == null)
                 return;
@@ -696,11 +572,9 @@ namespace LoadoutPresets
             if (def == null)
                 return;
 
-            var selectors =
-                MenuRefs.WeaponSelectors(__instance);
+            var selectors = MenuRefs.WeaponSelectors(__instance);
 
-            if (selectors == null ||
-                selectors.Count == 0)
+            if (selectors == null || selectors.Count == 0)
             {
                 return;
             }
