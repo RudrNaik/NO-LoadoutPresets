@@ -164,7 +164,6 @@ namespace LoadoutPresets
                 return;
             }
 
-            // Temporarily disable Harmony prefix block
             Patch_LoadDefaults.AllowVanilla = true;
 
             try
@@ -595,12 +594,8 @@ namespace LoadoutPresets
                 return;
             }
 
-            // Normal persistent loading
-            PresetIO.LoadPreset(
-                menu,
-                def,
-                Plugin.DEFAULTPRESET
-            );
+ 
+            PresetIO.LoadPreset(menu,def,Plugin.DEFAULTPRESET);
         }
     }
 
@@ -663,11 +658,6 @@ namespace LoadoutPresets
             Patch_AutoSave_Default.AutoSave(__instance);
         }
     }
-
-    // ============================================================
-    // IMPORTANT FIX:
-    // REMOVE ASSIGN AIRCRAFT PATCH ENTIRELY
-    // ============================================================
 
     internal static class PresetMenuUI
     {
