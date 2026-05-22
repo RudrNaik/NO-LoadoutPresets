@@ -139,6 +139,44 @@ namespace LoadoutPresets
             return Get(PresetSection(def, preset),SavedKey,false);
         }
 
+        internal static bool IsPresetEmpty(AircraftDefinition def,string preset)
+        {
+            string section = PresetSection(def, preset);
+
+            for (int i = 0; i < 20; i++)
+            {
+                string hp =Get(section, HpKey(i), "");
+
+                if (!string.IsNullOrWhiteSpace(hp))
+                    return false;
+            }
+
+            return true;
+        }
+
+        internal static void ForceVanillaDefaults(LoadoutSelector loadSelect)
+        {
+            var method = typeof(LoadoutSelector).GetMethod("LoadDefaults", BindingFlags.Instance |BindingFlags.Public |BindingFlags.NonPublic);
+
+            if (method == null)
+            {
+                Plugin.Log.LogError("[Presets] Failed to find LoadDefaults");
+                return;
+            }
+
+            // Temporarily disable Harmony prefix block
+            Patch_LoadDefaults.AllowVanilla = true;
+
+            try
+            {
+                method.Invoke(loadSelect, null);
+            }
+            finally
+            {
+                Patch_LoadDefaults.AllowVanilla = false;
+            }
+        }
+
         internal static void SaveCurrentToPreset(AircraftSelectionMenu menu,AircraftDefinition def,string preset)
         {
             if (string.IsNullOrWhiteSpace(preset))
@@ -519,9 +557,11 @@ namespace LoadoutPresets
     [HarmonyPatch(typeof(LoadoutSelector), "LoadDefaults")]
     internal static class Patch_LoadDefaults
     {
+        internal static bool AllowVanilla;
+
         static bool Prefix()
         {
-            return false;
+            return AllowVanilla;
         }
 
         static void Postfix(LoadoutSelector __instance)
@@ -529,7 +569,8 @@ namespace LoadoutPresets
             if (!Plugin.Enabled.Value)
                 return;
 
-            var menu = __instance.GetComponentInParent<AircraftSelectionMenu>();
+            var menu =
+                __instance.GetComponentInParent<AircraftSelectionMenu>();
 
             if (menu == null)
                 return;
@@ -541,7 +582,24 @@ namespace LoadoutPresets
             if (def == null)
                 return;
 
-            PresetIO.LoadPreset(menu,def,Plugin.DEFAULTPRESET
+            bool empty = PresetIO.IsPresetEmpty(def,Plugin.DEFAULTPRESET);
+
+            if (empty)
+            {
+                Plugin.Log.LogInfo($"[Presets] DEFAULT empty for {def.unitName}, restoring vanilla defaults");
+
+                PresetIO.ForceVanillaDefaults(__instance);
+
+                PresetIO.SaveCurrentToPreset(menu,def,Plugin.DEFAULTPRESET);
+
+                return;
+            }
+
+            // Normal persistent loading
+            PresetIO.LoadPreset(
+                menu,
+                def,
+                Plugin.DEFAULTPRESET
             );
         }
     }
