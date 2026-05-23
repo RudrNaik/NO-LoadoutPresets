@@ -72,6 +72,7 @@ namespace LoadoutPresets
     internal static class PresetIO
     {
         internal static bool IsApplyingPreset;
+        internal static bool IsRestoringDefaults;
 
         private const string ActiveKey = "ActivePreset";
         private const string SavedKey = "Saved";
@@ -589,6 +590,9 @@ namespace LoadoutPresets
 
         static bool Prefix()
         {
+            if (PresetIO.IsRestoringDefaults)
+                return true;
+
             return AllowVanilla;
         }
 
@@ -614,16 +618,29 @@ namespace LoadoutPresets
 
             if (empty)
             {
-                Plugin.Log.LogInfo($"[Presets] DEFAULT empty for {def.unitName}, restoring vanilla defaults");
+                if (PresetIO.IsRestoringDefaults)
+                {
+                    Plugin.Log.LogWarning($"[Presets] Prevented recursive default restore for {def.unitName}");
 
-                PresetIO.ForceVanillaDefaults(__instance);
+                    return;
+                }
 
-                PresetIO.SaveCurrentToPreset(menu,def,Plugin.DEFAULTPRESET);
+                try
+                {
+                    PresetIO.IsRestoringDefaults = true;
+                    Plugin.Log.LogInfo($"[Presets] DEFAULT empty for {def.unitName}, restoring vanilla defaults");
+                    PresetIO.ForceVanillaDefaults(__instance);
+                    PresetIO.SaveCurrentToPreset(menu,def,Plugin.DEFAULTPRESET);
+                }
+                finally
+                {
+                    PresetIO.IsRestoringDefaults = false;
+                }
 
                 return;
             }
 
- 
+
             PresetIO.LoadPreset(menu,def,Plugin.DEFAULTPRESET);
         }
     }
