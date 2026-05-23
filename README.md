@@ -11,4 +11,6 @@ Requirements: [BepInEx 5](https://github.com/BepInEx/BepInEx) [Install Instructi
 - `Apply` update the selected preset with current loadout and name.
 - `Delete` delete the selected preset, will request confirmation
 
+Now compatible with Unrestricted Weapons. When loading loadouts that were made with Unrestricted Weapons active *without* it active, it will strip those hardpoints.
+
 Original credit for the mod goes to Nikkorap.
