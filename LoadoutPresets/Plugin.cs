@@ -93,25 +93,51 @@ namespace LoadoutPresets
                 ? Plugin.DEFAULTPRESET
                 : preset;
         }
-
+        
         private static ConfigEntry<T> Entry<T>(
             string section,
             string key,
             T def
-        ) => Plugin.Cfg.Bind(section, key, def);
+        )
+        {
+            var cfg = Plugin.Cfg;
+            var saveOnConfigSet = cfg.SaveOnConfigSet;
+            cfg.SaveOnConfigSet = false;
+            try
+            {
+                return cfg.Bind(section, key, def);
+            }
+            finally
+            {
+                cfg.SaveOnConfigSet = saveOnConfigSet;
+            }
+        }
 
         internal static T Get<T>(
             string section,
             string key,
             T def
         ) => Entry(section, key, def).Value;
-
+        
         internal static void Set<T>(
             string section,
             string key,
             T def,
             T value
-        ) => Entry(section, key, def).Value = value;
+        )
+        {
+            var cfg = Plugin.Cfg;
+            var saveOnConfigSet = cfg.SaveOnConfigSet;
+            cfg.SaveOnConfigSet = false;
+            try
+            {
+                cfg.Bind(section, key, def).Value = value;
+            }
+            finally
+            {
+                cfg.SaveOnConfigSet = saveOnConfigSet;
+            }
+        }
 
         internal static string BaseSection(AircraftDefinition def) =>
             $"Aircraft:{def.unitName}";
@@ -241,8 +267,6 @@ namespace LoadoutPresets
             preset = Norm(preset);
 
             bool applied = ApplyPreset(menu, def, preset);
-
-            Plugin.Cfg.Save();
 
             Plugin.Log.LogInfo($"[Presets] Loaded {preset}:{def.unitName} " + $"{(applied ? "" : "(no saved preset yet)")}");
 
@@ -415,6 +439,15 @@ namespace LoadoutPresets
             }
 
             string section = PresetSection(def, preset);
+            
+            Get(section, SavedKey, false);
+            Get(section, FuelKey, 1f);
+            Get(section, LiveryKey, "");
+            
+            for (var i = 0; i < 20; i++)
+            {
+                Get(section, HpKey(i), "");
+            }
 
             foreach (var k in Plugin.Cfg.Keys.ToArray())
             {
@@ -789,8 +822,6 @@ namespace LoadoutPresets
 
         private static void Window(AircraftSelectionMenu menu, AircraftDefinition def)
         {
-            _currentTooltip = GUI.tooltip;
-
             string active = PresetIO.GetActivePreset(def);
             string focus = string.IsNullOrWhiteSpace(_selected) ? active : _selected;
 
@@ -801,8 +832,8 @@ namespace LoadoutPresets
                 string p = _presets[i];
                 bool isFocus = string.Equals(p, focus, StringComparison.Ordinal);
                 GUIStyle style = isFocus ? GUI.skin.label : GUI.skin.button;
-
-                GUIContent loadoutContent = new GUIContent(p, PresetIO.BuildPresetTooltip(menu, def, p));
+                
+                GUIContent loadoutContent = new GUIContent(p, $"PresetTooltip:{i}");
 
                 if (GUILayout.Button(loadoutContent, style))
                 {
@@ -922,12 +953,24 @@ namespace LoadoutPresets
             }
 
             GUILayout.EndVertical();
-
+            
+            
             if (Event.current.type == EventType.Repaint)
             {
                 _desiredH = Mathf.Max(80, GUILayoutUtility.GetLastRect().yMax + 22);
-                _currentTooltip = GUI.tooltip;
+                var tooltip = GUI.tooltip;
+                const string prefix = "PresetTooltip:";
+                if (tooltip.StartsWith(prefix, StringComparison.Ordinal) && int.TryParse(tooltip.Substring(prefix.Length), out var index) &&
+                    (uint)index < (uint)_presets.Count)
+                {
+                    _currentTooltip = PresetIO.BuildPresetTooltip(menu, def, _presets[index]);
+                }
+                else
+                {
+                    _currentTooltip = tooltip;
+                }
             }
+
         }
     }
 }
